@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grocery Price Calculator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    .calculator {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .field {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      font-size: 0.9rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: #4a90d9;
+    }
+
+    .row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .row .field { flex: 1; }
+
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: #4a90d9;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #3a7bc8; }
+
+    .result {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      background: #e8f5e9;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .result.visible { display: block; }
+
+    .result-line {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.3rem 0;
+      font-size: 0.95rem;
+    }
+
+    .result-line .label { color: #555; }
+    .result-line .value { font-weight: 700; }
+
+    .result-line.highlight {
+      font-size: 1.15rem;
+      border-top: 1px solid #c8e6c9;
+      margin-top: 0.4rem;
+      padding-top: 0.6rem;
+    }
+
+    .result-line.highlight .value { color: #2e7d32; }
+
+    .error {
+      color: #c62828;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    .error.visible { display: block; }
+
+    .info {
+      margin-top: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+      font-size: 0.8rem;
+      color: #888;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Grocery Price Calculator</h1>
+  <p class="subtitle">Convert any price to price-per-pound</p>
+
+  <div class="calculator">
+    <div class="field">
+      <label for="totalPrice">Total Price ($)</label>
+      <input type="number" id="totalPrice" placeholder="e.g. 30.00" min="0" step="0.01">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="weight">Weight / Quantity</label>
+        <input type="number" id="weight" placeholder="e.g. 16" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label for="unit">Unit</label>
+        <select id="unit">
+          <option value="oz">Ounces (oz)</option>
+          <option value="lb">Pounds (lb)</option>
+          <option value="g">Grams (g)</option>
+          <option value="kg">Kilograms (kg)</option>
+          <option value="each">Each (unit)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="eachWeightField" style="display:none;">
+      <label for="eachWeight">Weight per item (oz)</label>
+      <input type="number" id="eachWeight" placeholder="e.g. 6" min="0" step="0.01">
+    </div>
+
+    <div class="field" id="quantityField" style="display:none;">
+      <label for="quantity">Number of items</label>
+      <input type="number" id="quantity" placeholder="e.g. 4" min="1" step="1">
+    </div>
+
+    <button id="calcBtn">Calculate</button>
+
+    <p class="error" id="error"></p>
+
+    <div class="result" id="result">
+      <div class="result-line">
+        <span class="label">Price per <span id="resUnit">oz</span>:</span>
+        <span class="value" id="pricePerUnit">-</span>
+      </div>
+      <div class="result-line highlight">
+        <span class="label">Price per pound:</span>
+        <span class="value" id="pricePerLb">-</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="info">
+    Tip: Enter total price and weight in whatever unit the store uses.
+    The calculator converts everything to price-per-pound so you can compare easily.
+  </p>
+
+  <script>
+    // Conversion factors to pounds
+    const TO_LB = {
+      oz: 1 / 16,
+      lb: 1,
+      g:  1 / 453.592,
+      kg: 2.20462,
+    };
+
+    const UNIT_LABELS = {
+      oz: 'oz',
+      lb: 'lb',
+      g: 'g',
+      kg: 'kg',
+      each: 'item',
+    };
+
+    const unitSelect = document.getElementById('unit');
+    const eachWeightField = document.getElementById('eachWeightField');
+    const quantityField = document.getElementById('quantityField');
+
+    unitSelect.addEventListener('change', () => {
+      const isEach = unitSelect.value === 'each';
+      eachWeightField.style.display = isEach ? 'block' : 'none';
+      quantityField.style.display = isEach ? 'block' : 'none';
+    });
+
+    document.getElementById('calcBtn').addEventListener('click', calculate);
+
+    // Allow pressing Enter to calculate
+    document.querySelectorAll('input').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') calculate();
+      });
+    });
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.classList.add('visible');
+      document.getElementById('result').classList.remove('visible');
+    }
+
+    function formatPrice(n) {
+      return '$' + n.toFixed(2);
+    }
+
+    function calculate() {
+      const errorEl = document.getElementById('error');
+      errorEl.classList.remove('visible');
+
+      const totalPrice = parseFloat(document.getElementById('totalPrice').value);
+      const unit = unitSelect.value;
+
+      if (isNaN(totalPrice) || totalPrice <= 0) {
+        return showError('Please enter a valid price greater than 0.');
+      }
+
+      let weightInLb;
+      let pricePerInputUnit;
+
+      if (unit === 'each') {
+        const eachWeightOz = parseFloat(document.getElementById('eachWeight').value);
+        const qty = parseInt(document.getElementById('quantity').value, 10);
+
+        if (isNaN(eachWeightOz) || eachWeightOz <= 0) {
+          return showError('Please enter the weight per item in ounces.');
+        }
+        if (isNaN(qty) || qty <= 0) {
+          return showError('Please enter the number of items.');
+        }
+
+        const totalOz = eachWeightOz * qty;
+        weightInLb = totalOz * TO_LB['oz'];
+        pricePerInputUnit = totalPrice / qty;
+      } else {
+        const weight = parseFloat(document.getElementById('weight').value);
+        if (isNaN(weight) || weight <= 0) {
+          return showError('Please enter a valid weight greater than 0.');
+        }
+        weightInLb = weight * TO_LB[unit];
+        pricePerInputUnit = totalPrice / weight;
+      }
+
+      const pricePerLb = totalPrice / weightInLb;
+
+      document.getElementById('resUnit').textContent = UNIT_LABELS[unit];
+      document.getElementById('pricePerUnit').textContent = formatPrice(pricePerInputUnit);
+      document.getElementById('pricePerLb').textContent = formatPrice(pricePerLb);
+      document.getElementById('result').classList.add('visible');
+    }
+  </script>
+</body>
+</html>
